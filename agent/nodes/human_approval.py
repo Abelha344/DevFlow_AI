@@ -22,7 +22,7 @@ def human_approval_node(state: AgentState) -> dict[str, Any]:
             "status": "approved",
             "current_node": "completed",
             "paused": False,
-            "logs": ["[human_approval] Code APPROVED — ready to push"],
+            "logs": ["[human_approval] Code APPROVED — ready to finish"],
         }
 
     if approved is False:

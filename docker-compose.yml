@@ -15,6 +15,7 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - SAVE_ARTIFACTS=${SAVE_ARTIFACTS:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

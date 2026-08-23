@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from typing import Any, AsyncIterator, Optional
 
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from pathlib import Path
 
+from agent.config import DEFAULT_GOOGLE_MODEL, GOOGLE_MODEL_FALLBACKS, google_model
 from agent.graph import get_compiled_graph
 from agent.state import initial_state
 
@@ -20,6 +22,13 @@ router = APIRouter()
 
 ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_DIR = ROOT / "output"
+
+
+def _save_artifacts_enabled() -> bool:
+    """When false (cloud default), approve is session-only — no server disk write."""
+    raw = os.getenv("SAVE_ARTIFACTS", "true").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
 
 # In-memory snapshot cache for GET /state (also recoverable via checkpointer).
 _THREAD_SNAPSHOTS: dict[str, dict[str, Any]] = {}
@@ -77,9 +86,10 @@ async def get_agent_config() -> dict[str, Any]:
     import os
 
     provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+    save_artifacts = _save_artifacts_enabled()
     models = {
-        "google": os.getenv("GOOGLE_MODEL", "gemini-2.5-flash").strip(),
-        "gemini": os.getenv("GOOGLE_MODEL", "gemini-2.5-flash").strip(),
+        "google": google_model(),
+        "gemini": google_model(),
         "ollama": os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b").strip(),
         "openai": os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip(),
     }
@@ -99,6 +109,10 @@ async def get_agent_config() -> dict[str, Any]:
             "pytest",
             "stdlib",
         ],
+        "default_google_model": DEFAULT_GOOGLE_MODEL,
+        "google_model_fallbacks": list(GOOGLE_MODEL_FALLBACKS),
+        "save_artifacts": save_artifacts,
+        "storage_mode": "disk" if save_artifacts else "session",
     }
 
 
@@ -250,16 +264,22 @@ async def approve_agent(body: ApproveRequest) -> dict[str, Any]:
 
     status = "approved" if body.approved else "rejected"
     push_path = ""
+    artifacts_saved = False
     if body.approved and final_values:
-        push_path = _push_artifacts(body.thread_id, final_values)
+        if _save_artifacts_enabled():
+            push_path = _push_artifacts(body.thread_id, final_values)
+            artifacts_saved = True
+            log_line = f"[push] Saved to {push_path}"
+        else:
+            log_line = "[approval] Accepted (session only — use Download in the UI; not saved on server disk)"
         final_values = {
             **final_values,
             "status": status,
             "current_node": "completed",
             "paused": False,
             "push_path": push_path,
-            "logs": list(final_values.get("logs") or [])
-            + [f"[push] Saved to {push_path}"],
+            "artifacts_saved": artifacts_saved,
+            "logs": list(final_values.get("logs") or []) + [log_line],
         }
     elif final_values:
         final_values = {
@@ -275,6 +295,8 @@ async def approve_agent(body: ApproveRequest) -> dict[str, Any]:
         "approved": body.approved,
         "status": status,
         "push_path": push_path,
+        "artifacts_saved": artifacts_saved,
+        "storage_mode": "disk" if artifacts_saved else "session",
         "state": _serialize_state(final_values),
     }
 

@@ -26,6 +26,55 @@ const PROMPT_PLACEHOLDER =
 const PROMPT_PLACEHOLDER_NEXT =
   "Ask DevFlow AI for your next feature or bug fix";
 
+function downloadTextFile(filename, content) {
+  const blob = new Blob([content || ""], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function ArtifactDownloads({ code, tests, prompt, threadId, compact = false }) {
+  const btnClass = compact
+    ? "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+    : "rounded-lg border border-teal-700/30 bg-white px-3 py-2 text-sm font-semibold text-teal-900 hover:bg-teal-50";
+
+  return (
+    <div className={`flex flex-wrap gap-2 ${compact ? "" : "mt-2"}`}>
+      <button
+        type="button"
+        className={btnClass}
+        onClick={() => downloadTextFile("solution.py", code)}
+      >
+        Download solution.py
+      </button>
+      <button
+        type="button"
+        className={btnClass}
+        onClick={() => downloadTextFile("test_solution.py", tests)}
+      >
+        Download test_solution.py
+      </button>
+      {prompt ? (
+        <button
+          type="button"
+          className={btnClass}
+          onClick={() => downloadTextFile("prompt.txt", prompt)}
+        >
+          Download prompt.txt
+        </button>
+      ) : null}
+      {threadId ? (
+        <span className="self-center font-mono text-[11px] text-slate-500">
+          session {threadId.slice(0, 8)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export default function App() {
   const [prompt, setPrompt] = useState("");
   const [threadId, setThreadId] = useState(null);
@@ -193,14 +242,21 @@ export default function App() {
       setSessionComplete({
         outcome: approved ? "approved" : "rejected",
         savePath: data.push_path || "",
+        artifactsSaved: Boolean(data.artifacts_saved),
+        storageMode: data.storage_mode || storageMode,
         threadId,
+        code: agentState.code || "",
+        tests: agentState.tests || "",
+        taskPrompt: agentState.prompt || prompt,
       });
       setPrompt("");
       setStreamLogs((prev) => [
         ...prev,
         `[approval] ${approved ? "APPROVED" : "REJECTED"}`,
         approved
-          ? "[session] Task complete — ready for your next request"
+          ? saveToDisk
+            ? "[session] Task complete — saved to output folder"
+            : "[session] Task complete — download files to keep them (session only)"
           : "[session] Review ended — start a new task when ready",
       ]);
     } catch (err) {
@@ -257,6 +313,8 @@ export default function App() {
     .join("\n");
 
   const readyForNextTask = Boolean(sessionComplete);
+  const saveToDisk = llmInfo?.save_artifacts !== false;
+  const storageMode = llmInfo?.storage_mode || (saveToDisk ? "disk" : "session");
   const promptHint = readyForNextTask ? PROMPT_PLACEHOLDER_NEXT : PROMPT_PLACEHOLDER;
   const showPromptHint = !prompt.trim() && !promptFocused && !running;
   const runLabel = running
@@ -330,7 +388,9 @@ export default function App() {
           {readyForNextTask && (
             <p className="mb-2 text-sm text-slate-600">
               {sessionComplete.outcome === "approved"
-                ? "Previous task approved and saved. Enter a new prompt below, or reset the workspace to start fresh."
+                ? saveToDisk
+                  ? "Previous task approved and saved locally on the server. Download copies below if needed."
+                  : "Previous task approved for this browser session. Download the files below — they are not stored on the server."
                 : "Previous review was rejected. Adjust your prompt and run again, or reset the workspace."}
             </p>
           )}
@@ -414,8 +474,20 @@ export default function App() {
                 Human approval required
               </p>
               <p className="text-sm text-amber-900/80">
-                Pytest passed. Review the generated code, then approve to save it to the output folder.
+                Pytest passed. Review the code, download if you want a copy, then approve to finish this session.
+                {!saveToDisk && (
+                  <span className="block mt-1 text-amber-950/90">
+                    Cloud mode: approval does not write to server disk — use Download to keep the files.
+                  </span>
+                )}
               </p>
+              <ArtifactDownloads
+                code={agentState.code}
+                tests={agentState.tests}
+                prompt={prompt}
+                threadId={threadId}
+                compact
+              />
             </div>
             <div className="flex gap-2">
               <button
@@ -432,7 +504,7 @@ export default function App() {
                 onClick={() => handleDecision(true)}
                 className="rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
               >
-                Approve &amp; Push
+                Approve
               </button>
             </div>
           </div>
@@ -462,17 +534,33 @@ export default function App() {
               </p>
               <p className="text-sm text-slate-700">
                 {sessionComplete.outcome === "approved" ? (
-                  <>
-                    Artifacts saved to{" "}
-                    <span className="font-mono text-teal-900">
-                      {sessionComplete.savePath || `output/${sessionComplete.threadId?.slice(0, 8)}…`}
-                    </span>
-                    . The workspace is ready for your next prompt.
-                  </>
+                  saveToDisk && sessionComplete.artifactsSaved ? (
+                    <>
+                      Artifacts saved to{" "}
+                      <span className="font-mono text-teal-900">
+                        {sessionComplete.savePath ||
+                          `output/${sessionComplete.threadId?.slice(0, 8)}…`}
+                      </span>
+                      . Download copies below if needed.
+                    </>
+                  ) : (
+                    <>
+                      Approved for this session only — not stored on the server.
+                      Download the files below before you close or reset the workspace.
+                    </>
+                  )
                 ) : (
                   "You rejected this run. Update the prompt or reset the workspace to begin again."
                 )}
               </p>
+              {sessionComplete.outcome === "approved" && (
+                <ArtifactDownloads
+                  code={sessionComplete.code || agentState.code}
+                  tests={sessionComplete.tests || agentState.tests}
+                  prompt={sessionComplete.taskPrompt}
+                  threadId={sessionComplete.threadId}
+                />
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <button

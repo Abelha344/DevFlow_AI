@@ -16,10 +16,12 @@ services:
       - key: LLM_PROVIDER
         value: google
       - key: GOOGLE_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.5-flash
       - key: GOOGLE_API_KEY
         sync: false
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: CORS_ORIGINS
         value: https://dev-flow-ai-psi.vercel.app
+      - key: SAVE_ARTIFACTS
+        value: "false"

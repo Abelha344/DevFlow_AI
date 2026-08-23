@@ -55,10 +55,11 @@ You must see `HTTP:200` and `"status":"ok"`. If you see plain **Not Found**, the
 |----------|--------|
 | `LLM_PROVIDER` | `google` |
 | `GOOGLE_API_KEY` | your key *(secret)* |
-| `GOOGLE_MODEL` | `gemini-2.5-flash` |
+| `GOOGLE_MODEL` | `gemini-3.5-flash` |
 | `CORS_ORIGINS` | your Vercel URL, e.g. `https://dev-flow-ai-psi.vercel.app` |
+| `SAVE_ARTIFACTS` | `false` on Render (session + download); `true` locally |
 
-> **Model 404?** Use `gemini-2.5-flash` (not `gemini-1.5-flash` — retired).
+> **Model 404?** New Google AI Studio keys often **cannot** use `gemini-2.5-flash` or `gemini-1.5-flash`. Set **`GOOGLE_MODEL=gemini-3.5-flash`**. Verify: `./scripts/check-gemini-model.sh`. Create a **new auth key** at [Google AI Studio](https://aistudio.google.com/apikey) if the key is blocked.
 
 > **Free tier:** instances spin down after 15 min idle (~1 min cold start). Agent runs can take several minutes. `output/` is ephemeral on restart.
 
@@ -128,7 +129,7 @@ Vercel and Render auto-redeploy on push (if connected to GitHub).
 | `LLM_PROVIDER` | Default model | Local | Render / Vercel |
 |----------------|---------------|-------|-----------------|
 | **`ollama`** | `qwen2.5:0.5b` | Yes (free) | No — use `google` |
-| `google` | `gemini-2.5-flash` | Yes (API key) | **Recommended on Render** |
+| `google` | `gemini-3.5-flash` | Yes (API key) | **Recommended on Render** |
 | `openai` | `gpt-4o-mini` | Yes (paid) | Yes (paid) |
 
 ### Local setup (Ollama + Qwen)
@@ -211,7 +212,14 @@ Returns the active `LLM_PROVIDER` and model (shown in the dashboard header).
 
 ## Human-in-the-loop
 
-When pytest passes, the UI shows **Approve & Push** / **Reject**. After approval, artifacts save to `output/{thread_id}/` locally. On Render, that folder is **ephemeral** (lost on restart).
+When pytest passes, the UI shows **Approve** / **Reject**.
+
+| Mode | `SAVE_ARTIFACTS` | On approve |
+|------|------------------|------------|
+| **Local dev** | `true` (default) | Writes `output/{thread_id}/` on disk |
+| **Render / cloud** | `false` | Session-only — use **Download** buttons in the UI |
+
+Cloud deployments do not persist files on the server. Download before closing the tab or resetting the workspace.
 
 ## Project layout
 
