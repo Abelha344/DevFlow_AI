@@ -32,14 +32,22 @@ Coder → Executor (pytest) → Evaluator ──pass──► Human Approval →
 
 Split deployment: **React on Vercel**, **FastAPI on Render**. Ollama does **not** run in the cloud — use **Google Gemini** on Render (free tier API key).
 
-### Step 1 — Backend on Render
+### Step 1 — Backend on Render (native Python — recommended)
 
-1. Push this repo to GitHub (already done).
-2. Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint** (or **Web Service** → Docker).
-3. Connect the GitHub repo — Render reads `render.yaml` at the repo root.
-4. Set **secret** env var: `GOOGLE_API_KEY` (from [Google AI Studio](https://aistudio.google.com/apikey)).
-5. After deploy, copy your Render URL, e.g. `https://devflow-api.onrender.com`.
-6. Test: `https://devflow-api.onrender.com/health` → `{"status":"ok",...}`
+Use **`render.yaml`** (native Python). Do **not** use the root `Dockerfile` on Render — that file is for Hugging Face and starts Ollama, which fails in the cloud.
+
+1. Push this repo to GitHub.
+2. **Delete** any broken Render service named `DevFlow_AI` (Settings → Delete Web Service).
+3. [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint** → connect `Abelha344/DevFlow_AI`.
+4. Render reads `render.yaml` and creates **`devflow-api`** (Python, not Docker).
+5. When prompted, set secret **`GOOGLE_API_KEY`** ([Google AI Studio](https://aistudio.google.com/apikey)).
+6. Wait until status is **Live**, then verify:
+
+```bash
+./scripts/verify-deploy.sh https://YOUR-SERVICE.onrender.com
+```
+
+You must see `HTTP:200` and `"status":"ok"`. If you see plain **Not Found**, the service is **not running** — see [Troubleshooting](#troubleshooting-render-not-found).
 
 **Render env vars (Dashboard → Environment):**
 
@@ -48,11 +56,13 @@ Split deployment: **React on Vercel**, **FastAPI on Render**. Ollama does **not*
 | `LLM_PROVIDER` | `google` |
 | `GOOGLE_API_KEY` | your key *(secret)* |
 | `GOOGLE_MODEL` | `gemini-2.5-flash` |
+| `CORS_ORIGINS` | your Vercel URL, e.g. `https://dev-flow-ai-psi.vercel.app` |
 
-> **Model 404 on Render?** Google retired `gemini-1.5-flash` from the API. Set `GOOGLE_MODEL=gemini-2.5-flash` (or try `gemini-3.5-flash` if available in your region).
-| `CORS_ORIGINS` | your Vercel URL, e.g. `https://devflow-ai.vercel.app` |
+> **Model 404?** Use `gemini-2.5-flash` (not `gemini-1.5-flash` — retired).
 
-> **Free tier notes:** Render free instances spin down when idle (cold start ~1 min). Agent runs can take several minutes — upgrade or use short prompts if requests timeout. `output/` and in-memory state are **ephemeral** (lost on restart).
+> **Free tier:** instances spin down after 15 min idle (~1 min cold start). Agent runs can take several minutes. `output/` is ephemeral on restart.
+
+**Manual Docker deploy (optional, not recommended on free tier):** use `backend/Dockerfile`, context `.`, empty Start Command. Prefer Blueprint + Python instead.
 
 ### Step 2 — Frontend on Vercel
 
@@ -79,6 +89,25 @@ Split deployment: **React on Vercel**, **FastAPI on Render**. Ollama does **not*
 4. Deploy. Open your Vercel URL and run a prompt.
 
 5. Go back to Render → set `CORS_ORIGINS` to your exact Vercel URL → redeploy backend.
+
+### Troubleshooting: Render "Not Found"
+
+If `https://YOUR-SERVICE.onrender.com/health` shows plain **Not Found** (not JSON), Render has **no running instance**. This is **not** a Vercel bug.
+
+| Symptom | Meaning |
+|---------|---------|
+| Plain **Not Found** | No process running (`x-render-routing: no-server`) |
+| JSON `{"status":"ok"}` | Backend live — fix `VITE_API_BASE` or CORS on Vercel |
+| Loading spinner ~1 min | Free tier cold start — wait and retry |
+
+**Check in Render Dashboard:**
+
+1. **Suspended?** Free tier = **750 instance hours/month**. When exhausted, services are **suspended until next month** — URL stays **Not Found** even after "Deploy live". Fix: **Starter** plan ($7/mo) or wait for reset.
+2. **Logs:** need `Uvicorn running on http://0.0.0.0:...`. `Killed`/`OOM`/`Ollama` errors = wrong Dockerfile or out of memory.
+3. **Start Command:** must be **empty** (use `render.yaml` or Dockerfile `CMD`).
+4. **Health Check Path:** `/health`
+
+**Clean fix:** delete old service → **New → Blueprint** → set env vars → `./scripts/verify-deploy.sh URL` → update Vercel `VITE_API_BASE` → redeploy Vercel.
 
 **If build fails with “No FastAPI entrypoint found”:** Vercel is trying to deploy the Python backend. Push the latest repo (includes root `vercel.json`), then **Redeploy** — do **not** add the `pyproject.toml` FastAPI entrypoint Vercel suggests.
 
@@ -195,8 +224,8 @@ frontend/
   src/App.jsx           # VITE_API_BASE → Render API
   vercel.json           # SPA routing on Vercel
   .env.example          # VITE_API_BASE for production
-render.yaml             # Render Blueprint
-scripts/render-start.sh # uvicorn on $PORT
+render.yaml             # Render Blueprint (native Python — use this)
+scripts/verify-deploy.sh # Smoke-test /health + /config after deploy
 docker-compose.yml      # Local dev only
 requirements.txt
 .env.example

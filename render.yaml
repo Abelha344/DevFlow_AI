@@ -1,14 +1,18 @@
-# Render Blueprint — DevFlow AI backend (FastAPI)
-# Connect this repo at https://dashboard.render.com → New → Blueprint
+# Render Blueprint — DevFlow AI backend (FastAPI, native Python)
+# Dashboard → New → Blueprint → connect Abelha344/DevFlow_AI
+#
+# Prefer native Python over Docker on the free tier: faster builds, no image OOM.
 services:
   - type: web
     name: devflow-api
-    runtime: docker
+    runtime: python
     plan: free
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: .
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.10.14"
       - key: LLM_PROVIDER
         value: google
       - key: GOOGLE_MODEL
@@ -17,6 +21,5 @@ services:
         sync: false
       - key: PYTHONUNBUFFERED
         value: "1"
-      # Set to your Vercel URL after frontend deploy, e.g. https://devflow-ai.vercel.app
       - key: CORS_ORIGINS
-        value: https://YOUR_VERCEL_APP.vercel.app
+        value: https://dev-flow-ai-psi.vercel.app

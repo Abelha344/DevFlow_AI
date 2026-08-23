@@ -39,6 +39,11 @@ app.add_middleware(
 app.include_router(agent_router, prefix="/api/v1/agent", tags=["agent"])
 
 
+@app.get("/")
+async def root() -> dict[str, str]:
+    return {"service": "devflow-ai", "health": "/health", "api": "/api/v1/agent"}
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "devflow-ai"}
