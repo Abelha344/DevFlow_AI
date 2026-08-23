@@ -11,8 +11,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _env(name: str, default: str = "") -> str:
+    """Read env var and strip whitespace/newlines (common Render paste issue)."""
+    value = os.getenv(name, default)
+    return value.strip() if value else default
+
+
 def _provider() -> str:
-    return os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+    return _env("LLM_PROVIDER", "ollama").lower()
 
 
 @lru_cache(maxsize=1)
@@ -31,8 +37,8 @@ def get_llm() -> Any:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
         return ChatGoogleGenerativeAI(
-            model=os.getenv("GOOGLE_MODEL", "gemini-1.5-flash"),
-            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            model=_env("GOOGLE_MODEL", "gemini-1.5-flash"),
+            google_api_key=_env("GOOGLE_API_KEY") or None,
             temperature=0.2,
         )
 
@@ -40,8 +46,8 @@ def get_llm() -> Any:
         from langchain_ollama import ChatOllama
 
         return ChatOllama(
-            model=os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            model=_env("OLLAMA_MODEL", "qwen2.5:0.5b"),
+            base_url=_env("OLLAMA_BASE_URL", "http://localhost:11434"),
             temperature=0.2,
         )
 
@@ -49,8 +55,8 @@ def get_llm() -> Any:
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            api_key=os.getenv("OPENAI_API_KEY"),
+            model=_env("OPENAI_MODEL", "gpt-4o-mini"),
+            api_key=_env("OPENAI_API_KEY") or None,
             temperature=0.2,
         )
 

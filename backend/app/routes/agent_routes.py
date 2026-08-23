@@ -78,10 +78,10 @@ async def get_agent_config() -> dict[str, Any]:
 
     provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
     models = {
-        "google": os.getenv("GOOGLE_MODEL", "gemini-1.5-flash"),
-        "gemini": os.getenv("GOOGLE_MODEL", "gemini-1.5-flash"),
-        "ollama": os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b"),
-        "openai": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        "google": os.getenv("GOOGLE_MODEL", "gemini-1.5-flash").strip(),
+        "gemini": os.getenv("GOOGLE_MODEL", "gemini-1.5-flash").strip(),
+        "ollama": os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b").strip(),
+        "openai": os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip(),
     }
     model = models.get(provider, "unknown")
     paid = provider == "openai"
