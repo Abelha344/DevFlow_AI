@@ -55,7 +55,9 @@ Split deployment: **React on Vercel**, **FastAPI on Render**. Ollama does **not*
 ### Step 2 — Frontend on Vercel
 
 1. Go to [vercel.com/new](https://vercel.com/new) → import your GitHub repo.
-2. Configure the project:
+2. The repo includes a root **`vercel.json`** that builds the **Vite frontend only** (avoids the FastAPI detection error).
+
+   **Optional** (either use root `vercel.json` **or** these settings — not both required):
 
 | Setting | Value |
 |---------|--------|
@@ -64,15 +66,19 @@ Split deployment: **React on Vercel**, **FastAPI on Render**. Ollama does **not*
 | **Build Command** | `npm run build` |
 | **Output Directory** | `dist` |
 
-3. Add **Environment Variable** (required — baked in at build time):
+3. **Environment Variables** — add **only one** (delete all others Vercel auto-imported from `.env.example`):
 
 | Name | Value |
 |------|--------|
 | `VITE_API_BASE` | `https://YOUR_RENDER_SERVICE.onrender.com` |
 
+> **Do not** add `LLM_PROVIDER`, `GOOGLE_API_KEY`, Ollama vars, or `CORS_ORIGINS` on Vercel — those belong on **Render**.
+
 4. Deploy. Open your Vercel URL and run a prompt.
 
-5. Go back to Render → set `CORS_ORIGINS` to your exact Vercel URL if not already set → redeploy backend.
+5. Go back to Render → set `CORS_ORIGINS` to your exact Vercel URL → redeploy backend.
+
+**If build fails with “No FastAPI entrypoint found”:** Vercel is trying to deploy the Python backend. Push the latest repo (includes root `vercel.json`), then **Redeploy** — do **not** add the `pyproject.toml` FastAPI entrypoint Vercel suggests.
 
 ### Step 3 — Re-push after changes
 
