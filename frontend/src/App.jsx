@@ -36,26 +36,29 @@ function downloadTextFile(filename, content) {
   URL.revokeObjectURL(url);
 }
 
-function ArtifactDownloads({ code, tests, prompt, threadId, compact = false }) {
-  const btnClass = compact
-    ? "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-    : "rounded-lg border border-teal-700/30 bg-white px-3 py-2 text-sm font-semibold text-teal-900 hover:bg-teal-50";
+function ArtifactDownloads({ code, tests, prompt, threadId, variant = "default" }) {
+  const btnClass =
+    variant === "pill"
+      ? "rounded-full border border-teal-700/20 bg-white/90 px-3 py-1 text-xs font-medium text-teal-900 shadow-sm transition hover:bg-teal-50"
+      : variant === "compact"
+        ? "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+        : "rounded-lg border border-teal-700/30 bg-white px-3 py-2 text-sm font-semibold text-teal-900 hover:bg-teal-50";
 
   return (
-    <div className={`flex flex-wrap gap-2 ${compact ? "" : "mt-2"}`}>
+    <div className="flex flex-wrap gap-2">
       <button
         type="button"
         className={btnClass}
         onClick={() => downloadTextFile("solution.py", code)}
       >
-        Download solution.py
+        solution.py
       </button>
       <button
         type="button"
         className={btnClass}
         onClick={() => downloadTextFile("test_solution.py", tests)}
       >
-        Download test_solution.py
+        test_solution.py
       </button>
       {prompt ? (
         <button
@@ -63,14 +66,84 @@ function ArtifactDownloads({ code, tests, prompt, threadId, compact = false }) {
           className={btnClass}
           onClick={() => downloadTextFile("prompt.txt", prompt)}
         >
-          Download prompt.txt
+          prompt.txt
         </button>
       ) : null}
-      {threadId ? (
+      {threadId && variant === "default" ? (
         <span className="self-center font-mono text-[11px] text-slate-500">
           session {threadId.slice(0, 8)}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+function CompletionBanner({ sessionComplete, saveToDisk, onDismiss }) {
+  if (!sessionComplete) return null;
+
+  const approved = sessionComplete.outcome === "approved";
+
+  return (
+    <div
+      className={`mb-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm sm:flex-row sm:items-start sm:justify-between ${
+        approved
+          ? "border-teal-200/80 bg-gradient-to-br from-teal-50 via-white to-emerald-50/80"
+          : "border-slate-200 bg-gradient-to-br from-slate-50 to-white"
+      }`}
+    >
+      <div className="flex gap-3">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white ${
+            approved ? "bg-teal-700" : "bg-slate-500"
+          }`}
+        >
+          {approved ? "✓" : "×"}
+        </div>
+        <div>
+          <p className="font-display text-lg text-teal-950">
+            {approved ? "Approved — your next prompt is ready" : "Review ended"}
+          </p>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
+            {approved ? (
+              saveToDisk && sessionComplete.artifactsSaved ? (
+                <>
+                  Saved to{" "}
+                  <span className="font-mono text-teal-900">
+                    {sessionComplete.savePath ||
+                      `output/${sessionComplete.threadId?.slice(0, 8)}…`}
+                  </span>
+                  . Download copies below, then type your next request.
+                </>
+              ) : (
+                <>
+                  Session complete. Download the files if you want to keep them, then enter
+                  your next request below.
+                </>
+              )
+            ) : (
+              "Adjust your prompt and run again, or reset the workspace."
+            )}
+          </p>
+          {approved && (
+            <div className="mt-3">
+              <ArtifactDownloads
+                variant="pill"
+                code={sessionComplete.code}
+                tests={sessionComplete.tests}
+                prompt={sessionComplete.taskPrompt}
+                threadId={sessionComplete.threadId}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="self-start rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:bg-white/80 hover:text-slate-800"
+      >
+        Dismiss
+      </button>
     </div>
   );
 }
@@ -84,6 +157,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [llmInfo, setLlmInfo] = useState(null);
   const [sessionComplete, setSessionComplete] = useState(null);
+  const [showCompletionBanner, setShowCompletionBanner] = useState(true);
   const [promptFocused, setPromptFocused] = useState(false);
   const promptRef = useRef(null);
   const promptInputRef = useRef(null);
@@ -113,10 +187,11 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionComplete) return undefined;
+    setShowCompletionBanner(true);
     const timer = setTimeout(() => {
-      promptRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      promptRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       promptInputRef.current?.focus();
-    }, 180);
+    }, 120);
     return () => clearTimeout(timer);
   }, [sessionComplete]);
 
@@ -127,6 +202,7 @@ export default function App() {
     setStreamLogs([]);
     setError(null);
     setSessionComplete(null);
+    setShowCompletionBanner(true);
     setRunning(false);
   }, []);
 
@@ -243,22 +319,13 @@ export default function App() {
         outcome: approved ? "approved" : "rejected",
         savePath: data.push_path || "",
         artifactsSaved: Boolean(data.artifacts_saved),
-        storageMode: data.storage_mode || storageMode,
+        storageMode: data.storage_mode || (llmInfo?.storage_mode ?? "session"),
         threadId,
         code: agentState.code || "",
         tests: agentState.tests || "",
         taskPrompt: agentState.prompt || prompt,
       });
       setPrompt("");
-      setStreamLogs((prev) => [
-        ...prev,
-        `[approval] ${approved ? "APPROVED" : "REJECTED"}`,
-        approved
-          ? saveToDisk
-            ? "[session] Task complete — saved to output folder"
-            : "[session] Task complete — download files to keep them (session only)"
-          : "[session] Review ended — start a new task when ready",
-      ]);
     } catch (err) {
       setError(err.message || String(err));
     } finally {
@@ -314,7 +381,16 @@ export default function App() {
 
   const readyForNextTask = Boolean(sessionComplete);
   const saveToDisk = llmInfo?.save_artifacts !== false;
-  const storageMode = llmInfo?.storage_mode || (saveToDisk ? "disk" : "session");
+  const approvedReady = sessionComplete?.outcome === "approved";
+  const statusLabel = readyForNextTask
+    ? approvedReady
+      ? "ready · next task"
+      : "rejected · edit & retry"
+    : `${agentState.status || "idle"}${
+        typeof agentState.iteration_count === "number"
+          ? ` · iter ${agentState.iteration_count}`
+          : ""
+      }`;
   const promptHint = readyForNextTask ? PROMPT_PLACEHOLDER_NEXT : PROMPT_PLACEHOLDER;
   const showPromptHint = !prompt.trim() && !promptFocused && !running;
   const runLabel = running
@@ -366,34 +442,35 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-8 px-6 pb-28 pt-6">
+      <main className={`mx-auto max-w-7xl space-y-8 px-6 pt-6 ${readyForNextTask ? "pb-12" : "pb-28"}`}>
         <section
           ref={promptRef}
-          className={`animate-rise rounded-2xl transition ${
+          className={`animate-rise rounded-2xl border bg-white/60 p-5 shadow-sm backdrop-blur transition ${
             readyForNextTask
-              ? "ring-2 ring-teal-500/40 ring-offset-2 ring-offset-[#eef3e6]"
-              : ""
+              ? "border-teal-300/80 ring-2 ring-teal-500/25 ring-offset-2 ring-offset-[#eef3e6]"
+              : "border-transparent"
           }`}
         >
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <label className="block text-sm font-medium text-slate-700">
+          {readyForNextTask && showCompletionBanner && (
+            <CompletionBanner
+              sessionComplete={sessionComplete}
+              saveToDisk={saveToDisk}
+              onDismiss={() => setShowCompletionBanner(false)}
+            />
+          )}
+
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <label className="block text-sm font-semibold text-slate-800">
               {readyForNextTask ? "Next feature / bug request" : "Feature / bug request"}
             </label>
-            {readyForNextTask && (
-              <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-teal-900">
+            {readyForNextTask && approvedReady && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
                 Ready for next task
               </span>
             )}
           </div>
-          {readyForNextTask && (
-            <p className="mb-2 text-sm text-slate-600">
-              {sessionComplete.outcome === "approved"
-                ? saveToDisk
-                  ? "Previous task approved and saved locally on the server. Download copies below if needed."
-                  : "Previous task approved for this browser session. Download the files below — they are not stored on the server."
-                : "Previous review was rejected. Adjust your prompt and run again, or reset the workspace."}
-            </p>
-          )}
+
           <div className="relative">
             {showPromptHint && (
               <div
@@ -409,9 +486,13 @@ export default function App() {
               onChange={(e) => setPrompt(e.target.value)}
               onFocus={() => setPromptFocused(true)}
               onBlur={() => setPromptFocused(false)}
-              rows={4}
+              rows={readyForNextTask ? 5 : 4}
               aria-label={promptHint}
-              className="relative w-full resize-y rounded-xl border border-slate-300/80 bg-white/70 px-4 py-3 text-sm text-slate-800 shadow-sm outline-none ring-teal-600/30 backdrop-blur placeholder:text-transparent focus:ring-2"
+              className={`relative w-full resize-y rounded-xl border bg-white px-4 py-3 text-sm text-slate-800 shadow-inner outline-none ring-teal-600/30 placeholder:text-transparent focus:ring-2 ${
+                readyForNextTask
+                  ? "border-teal-300/70 focus:border-teal-500"
+                  : "border-slate-300/80"
+              }`}
               placeholder={promptHint}
             />
           </div>
@@ -420,7 +501,7 @@ export default function App() {
               type="button"
               onClick={handleRun}
               disabled={running || !prompt.trim()}
-              className="rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {runLabel}
             </button>
@@ -429,16 +510,13 @@ export default function App() {
                 type="button"
                 onClick={handleStartNewTask}
                 disabled={running}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Reset workspace
+                Clear workspace
               </button>
             )}
-            <span className="text-xs uppercase tracking-wide text-slate-500">
-              status: {agentState.status || "idle"}
-              {typeof agentState.iteration_count === "number"
-                ? ` · iter ${agentState.iteration_count}`
-                : ""}
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-600">
+              {statusLabel}
             </span>
             {error && (
               <span className="text-sm text-rose-700">{error}</span>
@@ -446,24 +524,62 @@ export default function App() {
           </div>
         </section>
 
-        <section className="animate-rise-delayed">
-          <h2 className="mb-3 font-display text-2xl text-teal-950">Execution graph</h2>
-          <GraphVisualizer
-            currentNode={agentState.current_node}
-            status={agentState.status}
-            testsPassed={agentState.tests_passed}
-          />
-        </section>
+        {readyForNextTask ? (
+          <details className="group rounded-2xl border border-slate-200/70 bg-white/40 shadow-sm backdrop-blur">
+            <summary className="cursor-pointer list-none px-5 py-4 marker:content-none">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-display text-lg text-slate-700">
+                  Previous run
+                </span>
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500 group-open:hidden">
+                  Expand to review code &amp; logs
+                </span>
+                <span className="hidden text-xs font-medium uppercase tracking-wide text-slate-500 group-open:inline">
+                  Collapse
+                </span>
+              </div>
+            </summary>
+            <div className="space-y-8 border-t border-slate-200/70 px-5 pb-6 pt-4">
+              <section>
+                <h2 className="mb-3 font-display text-xl text-teal-950">Execution graph</h2>
+                <GraphVisualizer
+                  currentNode={agentState.current_node}
+                  status={agentState.status}
+                  testsPassed={agentState.tests_passed}
+                />
+              </section>
+              <section>
+                <h2 className="mb-3 font-display text-xl text-teal-950">Generated artifacts</h2>
+                <CodeViewer code={agentState.code || ""} tests={agentState.tests || ""} />
+              </section>
+              <section>
+                <h2 className="mb-3 font-display text-xl text-teal-950">Terminal</h2>
+                <TerminalLogs content={terminalText} />
+              </section>
+            </div>
+          </details>
+        ) : (
+          <>
+            <section className="animate-rise-delayed">
+              <h2 className="mb-3 font-display text-2xl text-teal-950">Execution graph</h2>
+              <GraphVisualizer
+                currentNode={agentState.current_node}
+                status={agentState.status}
+                testsPassed={agentState.tests_passed}
+              />
+            </section>
 
-        <section className="animate-rise-delayed-2">
-          <h2 className="mb-3 font-display text-2xl text-teal-950">Generated artifacts</h2>
-          <CodeViewer code={agentState.code || ""} tests={agentState.tests || ""} />
-        </section>
+            <section className="animate-rise-delayed-2">
+              <h2 className="mb-3 font-display text-2xl text-teal-950">Generated artifacts</h2>
+              <CodeViewer code={agentState.code || ""} tests={agentState.tests || ""} />
+            </section>
 
-        <section>
-          <h2 className="mb-3 font-display text-2xl text-teal-950">Terminal</h2>
-          <TerminalLogs content={terminalText} />
-        </section>
+            <section>
+              <h2 className="mb-3 font-display text-2xl text-teal-950">Terminal</h2>
+              <TerminalLogs content={terminalText} />
+            </section>
+          </>
+        )}
       </main>
 
       {awaitingApproval && (
@@ -482,11 +598,11 @@ export default function App() {
                 )}
               </p>
               <ArtifactDownloads
+                variant="compact"
                 code={agentState.code}
                 tests={agentState.tests}
                 prompt={prompt}
                 threadId={threadId}
-                compact
               />
             </div>
             <div className="flex gap-2">
@@ -511,79 +627,6 @@ export default function App() {
         </div>
       )}
 
-      {sessionComplete && !awaitingApproval && (
-        <div
-          className={`fixed inset-x-0 bottom-0 z-50 border-t px-4 py-4 shadow-[0_-8px_30px_rgba(15,23,42,0.12)] backdrop-blur ${
-            sessionComplete.outcome === "approved"
-              ? "border-teal-500/40 bg-teal-50/95"
-              : "border-slate-400/50 bg-slate-50/95"
-          }`}
-        >
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
-            <div>
-              <p
-                className={`font-display text-lg ${
-                  sessionComplete.outcome === "approved"
-                    ? "text-teal-950"
-                    : "text-slate-900"
-                }`}
-              >
-                {sessionComplete.outcome === "approved"
-                  ? "Task completed successfully"
-                  : "Review completed — changes not saved"}
-              </p>
-              <p className="text-sm text-slate-700">
-                {sessionComplete.outcome === "approved" ? (
-                  saveToDisk && sessionComplete.artifactsSaved ? (
-                    <>
-                      Artifacts saved to{" "}
-                      <span className="font-mono text-teal-900">
-                        {sessionComplete.savePath ||
-                          `output/${sessionComplete.threadId?.slice(0, 8)}…`}
-                      </span>
-                      . Download copies below if needed.
-                    </>
-                  ) : (
-                    <>
-                      Approved for this session only — not stored on the server.
-                      Download the files below before you close or reset the workspace.
-                    </>
-                  )
-                ) : (
-                  "You rejected this run. Update the prompt or reset the workspace to begin again."
-                )}
-              </p>
-              {sessionComplete.outcome === "approved" && (
-                <ArtifactDownloads
-                  code={sessionComplete.code || agentState.code}
-                  tests={sessionComplete.tests || agentState.tests}
-                  prompt={sessionComplete.taskPrompt}
-                  threadId={sessionComplete.threadId}
-                />
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSessionComplete(null);
-                  promptInputRef.current?.focus();
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                Keep reviewing
-              </button>
-              <button
-                type="button"
-                onClick={handleStartNewTask}
-                className="rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
-              >
-                Start new task
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
