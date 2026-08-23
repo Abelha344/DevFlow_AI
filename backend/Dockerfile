@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# Torch omitted — ~800MB; OOMs Render free tier (512MB). Local/HF use root Dockerfile or pip install torch.
 RUN pip install --upgrade pip \
-    && pip install -r requirements.txt \
-    && pip install torch --index-url https://download.pytorch.org/whl/cpu
+    && pip install -r requirements.txt
 
 COPY agent ./agent
 COPY backend ./backend
@@ -24,4 +24,4 @@ RUN chmod +x ./scripts/render-start.sh
 
 EXPOSE 8000
 
-CMD ["./scripts/render-start.sh"]
+CMD ["bash", "scripts/render-start.sh"]
