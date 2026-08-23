@@ -47,7 +47,9 @@ Split deployment: **React on Vercel**, **FastAPI on Render**. Ollama does **not*
 |----------|--------|
 | `LLM_PROVIDER` | `google` |
 | `GOOGLE_API_KEY` | your key *(secret)* |
-| `GOOGLE_MODEL` | `gemini-1.5-flash` |
+| `GOOGLE_MODEL` | `gemini-2.5-flash` |
+
+> **Model 404 on Render?** Google retired `gemini-1.5-flash` from the API. Set `GOOGLE_MODEL=gemini-2.5-flash` (or try `gemini-3.5-flash` if available in your region).
 | `CORS_ORIGINS` | your Vercel URL, e.g. `https://devflow-ai.vercel.app` |
 
 > **Free tier notes:** Render free instances spin down when idle (cold start ~1 min). Agent runs can take several minutes — upgrade or use short prompts if requests timeout. `output/` and in-memory state are **ephemeral** (lost on restart).
@@ -97,7 +99,7 @@ Vercel and Render auto-redeploy on push (if connected to GitHub).
 | `LLM_PROVIDER` | Default model | Local | Render / Vercel |
 |----------------|---------------|-------|-----------------|
 | **`ollama`** | `qwen2.5:0.5b` | Yes (free) | No — use `google` |
-| `google` | `gemini-1.5-flash` | Yes (API key) | **Recommended on Render** |
+| `google` | `gemini-2.5-flash` | Yes (API key) | **Recommended on Render** |
 | `openai` | `gpt-4o-mini` | Yes (paid) | Yes (paid) |
 
 ### Local setup (Ollama + Qwen)

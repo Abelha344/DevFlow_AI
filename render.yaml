@@ -12,7 +12,7 @@ services:
       - key: LLM_PROVIDER
         value: google
       - key: GOOGLE_MODEL
-        value: gemini-1.5-flash
+        value: gemini-2.5-flash
       - key: GOOGLE_API_KEY
         sync: false
       - key: PYTHONUNBUFFERED

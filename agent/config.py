@@ -28,7 +28,7 @@ def get_llm() -> Any:
 
     Providers (env LLM_PROVIDER):
       - ollama  (default, free): ChatOllama / qwen2.5:0.5b
-      - google  (free tier):     ChatGoogleGenerativeAI / gemini-1.5-flash
+      - google  (free tier):     ChatGoogleGenerativeAI / gemini-2.5-flash
       - openai  (paid):          ChatOpenAI / gpt-4o-mini
     """
     provider = _provider()
@@ -37,7 +37,7 @@ def get_llm() -> Any:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
         return ChatGoogleGenerativeAI(
-            model=_env("GOOGLE_MODEL", "gemini-1.5-flash"),
+            model=_env("GOOGLE_MODEL", "gemini-2.5-flash"),
             google_api_key=_env("GOOGLE_API_KEY") or None,
             temperature=0.2,
         )
