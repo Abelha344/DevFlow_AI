@@ -1,0 +1,19 @@
+# LLM / LangChain
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.0
+langchain-ollama>=0.2.0
+langchain-openai>=0.2.0
+langgraph>=0.2.0
+
+# API
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.1
+pydantic>=2.9.0
+
+# Execution / agent sandbox (available to generated solution.py + pytest)
+pytest>=8.3.0
+numpy>=1.26.0
+pandas>=2.2.0
+# torch installed via CPU wheel in backend/Dockerfile (smaller than default CUDA build)

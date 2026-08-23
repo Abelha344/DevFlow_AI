@@ -1,0 +1,46 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: devflow-backend
+    ports:
+      # 8001 avoids conflict if another app (e.g. ScribeCare) uses 8000
+      - "8001:8000"
+    env_file:
+      - .env
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:0.5b}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./agent:/app/agent
+      - ./backend:/app/backend
+      - ./output:/app/output
+    networks:
+      - devflow-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Empty base → browser calls same-origin /api (proxied by Nginx to backend)
+        VITE_API_BASE: ""
+    container_name: devflow-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - devflow-net
+    restart: unless-stopped
+
+networks:
+  devflow-net:
+    driver: bridge
