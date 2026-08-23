@@ -17,8 +17,11 @@ RUN pip install --upgrade pip \
 
 COPY agent ./agent
 COPY backend ./backend
+COPY scripts/render-start.sh ./scripts/render-start.sh
 COPY .env.example ./.env.example
+
+RUN chmod +x ./scripts/render-start.sh
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./scripts/render-start.sh"]
